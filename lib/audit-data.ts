@@ -3,8 +3,93 @@ export type FindingCategory = 'factual_error' | 'unsupported_claim' | 'reasoning
 
 export type Evidence = { sourceId: string; quote: string; relation: 'supports' | 'contradicts' | 'contextual'; why: string }
 export type Source = { id: string; title: string; text: string }
-export type Claim = { id: string; text: string; verdict: Verdict; categories: FindingCategory[]; explanation: string; confidence?: number; evidence: Evidence[]; limitation?: string }
-export type Audit = { audit_id: string; title: string; mode: 'demo'; overall_assessment: string; original_answer: string; sources: Source[]; claims: Claim[] }
+export type ConfidenceLevel = 'high' | 'medium' | 'low'
+export type Claim = { id: string; text: string; verdict: Verdict; categories: FindingCategory[]; explanation: string; confidence?: number; confidenceLevel?: ConfidenceLevel; evidence: Evidence[]; limitation?: string; answer_start?: number; answer_end?: number; evidenceVerified?: boolean }
+export type AuditSummary = { total_claims: number; supported: number; contradicted: number; unsupported: number; ambiguous: number }
+export type Audit = { audit_id: string; title: string; mode: 'demo' | 'live'; overall_assessment: string; original_answer: string; sources: Source[]; claims: Claim[]; summary?: AuditSummary }
+
+export type AnalyzeClaim = {
+  claim_text: string
+  answer_start: number
+  answer_end: number
+  classification: 'supported' | 'contradicted' | 'unsupported' | 'ambiguous'
+  confidence: ConfidenceLevel
+  explanation: string
+  evidence: string | null
+  evidence_verified: boolean
+}
+
+export type AnalyzeResponse = { claims: AnalyzeClaim[]; summary: AuditSummary }
+
+export type ExtractedPdfPage = { page_number: number; text: string }
+export type ExtractPdfResponse = { page_count: number; text: string; pages: ExtractedPdfPage[] }
+
+export const isExtractPdfResponse = (value: unknown): value is ExtractPdfResponse => {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<ExtractPdfResponse>
+  return Number.isInteger(candidate.page_count) &&
+    typeof candidate.text === 'string' &&
+    candidate.text.trim().length > 0 &&
+    Array.isArray(candidate.pages) &&
+    candidate.pages.every((page) => Number.isInteger(page?.page_number) && typeof page?.text === 'string')
+}
+
+export const isAnalyzeResponse = (value: unknown): value is AnalyzeResponse => {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<AnalyzeResponse>
+  if (!Array.isArray(candidate.claims) || !candidate.summary || typeof candidate.summary !== 'object') return false
+
+  const validClassifications = new Set(['supported', 'contradicted', 'unsupported', 'ambiguous'])
+  const validConfidence = new Set(['high', 'medium', 'low'])
+  const claimsAreValid = candidate.claims.every((claim) =>
+    claim &&
+    typeof claim.claim_text === 'string' &&
+    Number.isInteger(claim.answer_start) &&
+    Number.isInteger(claim.answer_end) &&
+    validClassifications.has(claim.classification) &&
+    validConfidence.has(claim.confidence) &&
+    typeof claim.explanation === 'string' &&
+    (typeof claim.evidence === 'string' || claim.evidence === null) &&
+    typeof claim.evidence_verified === 'boolean'
+  )
+
+  const summary = candidate.summary as Partial<AuditSummary>
+  return claimsAreValid && ['total_claims', 'supported', 'contradicted', 'unsupported', 'ambiguous'].every((key) => Number.isInteger(summary[key as keyof AuditSummary]))
+}
+
+export const createLiveAudit = (response: AnalyzeResponse, answer: string, sources: Source[]): Audit => ({
+  audit_id: `audit-${Date.now()}`,
+  title: 'Custom source audit',
+  mode: 'live',
+  overall_assessment: response.summary.contradicted > 0 ? 'Review needed' : 'Analysis complete',
+  original_answer: answer,
+  sources,
+  summary: response.summary,
+  claims: response.claims.map((claim, index) => {
+    const verdict: Verdict = claim.classification === 'unsupported' ? 'insufficient_evidence' : claim.classification
+    const source = claim.evidence ? sources.find((item) => item.text.includes(claim.evidence!)) : undefined
+    const relation: Evidence['relation'] = claim.classification === 'contradicted' ? 'contradicts' : claim.classification === 'supported' ? 'supports' : 'contextual'
+
+    return {
+      id: `claim-${index + 1}`,
+      text: claim.claim_text,
+      verdict,
+      categories: claim.classification === 'contradicted' ? ['factual_error'] : claim.classification === 'unsupported' ? ['unsupported_claim'] : claim.classification === 'ambiguous' ? ['ambiguity'] : [],
+      explanation: claim.explanation,
+      confidenceLevel: claim.confidence,
+      answer_start: claim.answer_start,
+      answer_end: claim.answer_end,
+      evidenceVerified: claim.evidence_verified,
+      evidence: claim.evidence && claim.evidence_verified ? [{
+        sourceId: source?.id ?? sources[0]?.id ?? 'submitted-source',
+        quote: claim.evidence,
+        relation,
+        why: 'Exact quote verified against the submitted source text.',
+      }] : [],
+      limitation: claim.evidence ? 'The returned quote could not be verified against the submitted source.' : 'No exact evidence quote was available in the submitted source.',
+    }
+  }),
+})
 
 export const verdictLabels: Record<Verdict, string> = {
   supported: 'Supported',
@@ -39,7 +124,22 @@ export const getCounts = (claims: Claim[]) => claims.reduce((counts, claim) => (
 export const getHighlightParts = (answer: string, claims: Claim[]) => {
   const parts: { text: string; claim?: Claim }[] = []
   let cursor = 0
-  claims.forEach((claim) => { const index = answer.indexOf(claim.text, cursor); if (index >= 0) { if (index > cursor) parts.push({ text: answer.slice(cursor, index) }); parts.push({ text: claim.text, claim }); cursor = index + claim.text.length } })
+  const claimsWithOffsets = claims
+    .filter((claim) => Number.isInteger(claim.answer_start) && Number.isInteger(claim.answer_end))
+    .sort((a, b) => a.answer_start! - b.answer_start!)
+
+  if (claimsWithOffsets.length === claims.length) {
+    claimsWithOffsets.forEach((claim) => {
+      const start = claim.answer_start!
+      const end = claim.answer_end!
+      if (start < cursor || end > answer.length || answer.slice(start, end) !== claim.text) return
+      if (start > cursor) parts.push({ text: answer.slice(cursor, start) })
+      parts.push({ text: answer.slice(start, end), claim })
+      cursor = end
+    })
+  } else {
+    claims.forEach((claim) => { const index = answer.indexOf(claim.text, cursor); if (index >= 0) { if (index > cursor) parts.push({ text: answer.slice(cursor, index) }); parts.push({ text: claim.text, claim }); cursor = index + claim.text.length } })
+  }
   if (cursor < answer.length) parts.push({ text: answer.slice(cursor) })
   return parts
 }
