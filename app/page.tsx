@@ -26,6 +26,15 @@ const verdictHighlight: Record<Verdict, string> = {
 }
 const MAX_PDF_SIZE = 10 * 1024 * 1024
 
+function hasPdfSignature(bytes: Uint8Array) {
+  const signature = [0x25, 0x50, 0x44, 0x46, 0x2d]
+  const searchLength = Math.min(bytes.length, 1024)
+  for (let offset = 0; offset <= searchLength - signature.length; offset += 1) {
+    if (signature.every((byte, index) => bytes[offset + index] === byte)) return true
+  }
+  return false
+}
+
 /* ── Shared Components ────────────────────────────────────────────── */
 
 function Logo({ light = false }: { light?: boolean }) {
@@ -463,22 +472,30 @@ function InputWorkspace({
     setSources(sources.map((s, j) => (j === index ? { ...s, [field]: value } : s)))
   }
 
-  const selectPdf = (file: File | undefined) => {
+  const selectPdf = async (file: File | undefined) => {
     if (!file) return
     if (hasPastedSource) {
       setError('Remove the pasted source text before selecting a PDF. Use one source type per audit.')
       return
     }
-    if (!file.name.toLowerCase().endsWith('.pdf') || (file.type && file.type !== 'application/pdf')) {
-      setError('Select a PDF file. Other file types are not supported.')
+    setPdfFile(null)
+    if (file.size === 0) {
+      setError('The selected file is empty. Select a PDF file.')
       return
     }
     if (file.size > MAX_PDF_SIZE) {
       setError('The selected PDF exceeds the 10 MB file-size limit.')
       return
     }
-    if (file.size === 0) {
-      setError('The selected PDF is empty.')
+    let signatureBytes: Uint8Array
+    try {
+      signatureBytes = new Uint8Array(await file.slice(0, 1024).arrayBuffer())
+    } catch {
+      setError('The selected file could not be read. Select a different PDF.')
+      return
+    }
+    if (!hasPdfSignature(signatureBytes)) {
+      setError('The selected file is not a valid PDF. Choose a genuine PDF document.')
       return
     }
     setPdfFile(file)
@@ -565,14 +582,6 @@ function InputWorkspace({
         </div>
 
         <form onSubmit={run} className="mt-10 flex flex-col gap-7">
-          {/* Error */}
-          {error && (
-            <div className="rounded-[16px] bg-[#E0E5EC] neu-inset p-4 text-sm text-[#DC2626] font-medium animate-slide-up flex items-start gap-3" role="alert">
-              <CircleAlert size={18} className="shrink-0 mt-0.5" />
-              {error}
-            </div>
-          )}
-
           {/* AI Answer */}
           <label className="flex flex-col gap-3">
             <span className="text-sm font-bold font-display">AI-generated answer</span>
@@ -670,7 +679,7 @@ function InputWorkspace({
               accept="application/pdf,.pdf"
               className="hidden"
               onChange={(event) => {
-                selectPdf(event.target.files?.[0])
+                void selectPdf(event.target.files?.[0])
                 event.target.value = ''
               }}
             />
@@ -728,7 +737,7 @@ function InputWorkspace({
                 onDrop={(event) => {
                   event.preventDefault()
                   setDragActive(false)
-                  if (!hasPastedSource && !loading) selectPdf(event.dataTransfer.files?.[0])
+                  if (!hasPastedSource && !loading) void selectPdf(event.dataTransfer.files?.[0])
                 }}
                 className={`flex flex-col items-center rounded-[24px] bg-[#E0E5EC] px-6 py-10 text-center transition-all duration-300 ${
                   dragActive ? 'neu-inset-deep scale-[0.99]' : 'neu-inset hover:neu-inset-deep'
@@ -743,6 +752,12 @@ function InputWorkspace({
                   <span className="mt-3 text-xs font-medium text-[#D97706]">Clear pasted source text to enable PDF upload.</span>
                 )}
               </button>
+            )}
+            {error && (
+              <div className="rounded-[16px] bg-[#E0E5EC] neu-inset p-4 text-sm text-[#DC2626] font-medium animate-slide-up flex items-start gap-3" role="alert">
+                <CircleAlert size={18} className="shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
             )}
           </div>
 

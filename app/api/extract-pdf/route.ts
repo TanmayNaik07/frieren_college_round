@@ -7,6 +7,8 @@ import {
 
 export const runtime = "nodejs";
 
+const MAX_MULTIPART_BYTES = MAX_PDF_BYTES + 1024 * 1024;
+
 export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
 
@@ -18,15 +20,31 @@ export async function POST(request: Request) {
     );
   }
 
+  const contentLength = request.headers.get("content-length");
+  if (contentLength) {
+    const parsedLength = Number(contentLength);
+    if (Number.isFinite(parsedLength) && parsedLength > MAX_MULTIPART_BYTES) {
+      return errorResponse(
+        413,
+        "PDF_TOO_LARGE",
+        "The uploaded PDF exceeds the 10 MB file-size limit.",
+      );
+    }
+  }
+
   let formData: FormData;
 
   try {
     formData = await request.formData();
-  } catch {
+  } catch (error) {
+    console.error(
+      "PDF multipart parsing failed:",
+      error instanceof Error ? error.name : "UnknownError",
+    );
     return errorResponse(
       400,
       "INVALID_MULTIPART_BODY",
-      "The multipart form data could not be parsed.",
+      "The upload could not be read because the multipart request is malformed.",
     );
   }
 
