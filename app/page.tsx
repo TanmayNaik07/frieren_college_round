@@ -8,7 +8,7 @@ const verdictStyles: Record<Verdict, string> = { supported: 'border-emerald-200 
 const verdictDot: Record<Verdict, string> = { supported: 'bg-emerald-500', contradicted: 'bg-rose-500', insufficient_evidence: 'bg-amber-500', ambiguous: 'bg-slate-400' }
 
 function Logo({ light = false }: { light?: boolean }) { return <div className={`flex items-center gap-2.5 font-semibold tracking-tight ${light ? 'text-white' : 'text-slate-950'}`}><span className={`grid size-8 place-items-center rounded-lg ${light ? 'bg-white/15' : 'bg-indigo-600'} text-white`}><ClipboardCheck size={17} /></span><span>Second Opinion</span></div> }
-function Button({ children, onClick, variant = 'primary', className = '', type = 'button' }: { children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'ghost' | 'white'; className?: string; type?: 'button' | 'submit' }) { const styles = { primary: 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm shadow-indigo-200', secondary: 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50', ghost: 'text-slate-600 hover:bg-slate-100', white: 'bg-white text-indigo-700 hover:bg-indigo-50' }; return <button type={type} onClick={onClick} className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${styles[variant]} ${className}`}>{children}</button> }
+function Button({ children, onClick, variant = 'primary', className = '', type = 'button', disabled }: { children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'ghost' | 'white'; className?: string; type?: 'button' | 'submit'; disabled?: boolean }) { const styles = { primary: 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm shadow-indigo-200', secondary: 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50', ghost: 'text-slate-600 hover:bg-slate-100', white: 'bg-white text-indigo-700 hover:bg-indigo-50' }; return <button type={type} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${styles[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>{children}</button> }
 function Badge({ verdict }: { verdict: Verdict }) { return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${verdictStyles[verdict]}`}><span className={`size-1.5 rounded-full ${verdictDot[verdict]}`} />{verdictLabels[verdict]}</span> }
 
 function Landing({ onStart }: { onStart: () => void }) { const [menu, setMenu] = useState(false); return <div className="min-h-screen bg-white text-slate-950">
@@ -25,7 +25,100 @@ function Landing({ onStart }: { onStart: () => void }) { const [menu, setMenu] =
 
 function Preview() { return <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/60"><div className="rounded-xl border border-slate-100 bg-[#fafbfc] p-4"><div className="flex items-center justify-between border-b border-slate-200 pb-3"><div><p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Demo audit</p><p className="mt-1 text-sm font-semibold">Q3 performance summary</p></div><Badge verdict="contradicted" /></div><div className="grid gap-3 py-4 text-xs leading-6 sm:grid-cols-[1fr_180px]"><div className="rounded-lg bg-white p-4 text-slate-600 shadow-sm"><p>The report shows that revenue grew by <mark className="rounded bg-rose-100 px-1 text-rose-800">25% year over year.</mark> The company currently operates <mark className="rounded bg-emerald-100 px-1 text-emerald-800">20 offices.</mark></p><p className="mt-3 text-slate-400">Select a highlighted claim to inspect its evidence.</p></div><div className="rounded-lg border border-slate-200 bg-white p-3"><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Evidence</p><p className="mt-3 border-l-2 border-rose-300 pl-2 text-[11px] leading-5 text-slate-600">“Revenue increased by 12% compared with the same quarter last year.”</p><p className="mt-3 text-[10px] text-slate-400">Q3 performance report</p></div></div></div></div> }
 
-function InputWorkspace({ onBack, onResults }: { onBack: () => void; onResults: (audit: Audit) => void }) { const [answer, setAnswer] = useState(''); const [sources, setSources] = useState([{ title: '', text: '' }]); const [error, setError] = useState(''); const loadExample = (i: number) => { setAnswer(exampleAudits[i].answer); setSources([{ title: 'Illustrative source', text: exampleAudits[i].source }]); setError('') }; const run = (e: React.FormEvent) => { e.preventDefault(); if (!answer.trim() || !sources.some(s => s.text.trim())) { setError('Add an answer and at least one source before running the audit.'); return } onResults({ ...demoAudit, title: 'Illustrative audit — custom input', original_answer: answer, sources: sources.map((s,i) => ({ id: `custom-${i}`, title: s.title || `Source ${i+1}`, text: s.text })) }) }; return <AppShell onBack={onBack}><div className="mx-auto max-w-4xl px-5 py-10 lg:px-8"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-indigo-600">New Audit</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Check an AI-generated answer against its source material.</h1></div><span className="hidden rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 sm:inline-flex">Demo mode</span></div><form onSubmit={run} className="mt-10 flex flex-col gap-7">{error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">{error}</div>}<label className="flex flex-col gap-2"><span className="text-sm font-semibold">AI-generated answer</span><textarea value={answer} onChange={e => setAnswer(e.target.value)} rows={7} placeholder="Paste the answer you want to inspect..." className="rounded-xl border border-slate-200 bg-white p-4 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" /></label><div className="flex flex-col gap-4"><div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold">Source material</h2><p className="mt-1 text-xs text-slate-500">Paste the material the answer should be checked against.</p></div><span className="text-xs text-slate-400">Pasted text only</span></div>{sources.map((source,i) => <div className="rounded-xl border border-slate-200 bg-slate-50 p-4" key={i}><div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Source {i+1}</span>{sources.length > 1 && <button type="button" onClick={() => setSources(sources.filter((_,j) => j !== i))} className="text-xs font-medium text-slate-500 hover:text-rose-600">Remove</button>}</div><div className="flex flex-col gap-3"><input value={source.title} onChange={e => setSources(sources.map((s,j) => j === i ? {...s,title:e.target.value} : s))} placeholder="Source title" className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500" /><textarea value={source.text} onChange={e => setSources(sources.map((s,j) => j === i ? {...s,text:e.target.value} : s))} rows={4} placeholder="Paste source text..." className="rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6 outline-none focus:border-indigo-500" /></div></div>)}<Button variant="secondary" onClick={() => setSources([...sources, { title: '', text: '' }])}><Plus size={16} /> Add another source</Button></div><div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-6"><Button type="submit">Run Audit <ArrowRight size={16} /></Button><Button variant="secondary" onClick={() => loadExample(0)}>Load Example</Button><button type="button" onClick={() => {setAnswer(''); setSources([{title:'',text:''}]); setError('')}} className="px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900">Clear</button></div><p className="text-xs leading-5 text-slate-400">Demo mode uses sample audit results. Real verification will be connected to the auditing backend.</p></form></div></AppShell> }
+function InputWorkspace({ onBack, onResults }: { onBack: () => void; onResults: (audit: Audit) => void }) {
+  const [answer, setAnswer] = useState('');
+  const [sources, setSources] = useState([{ title: '', text: '' }]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const loadExample = (i: number) => {
+    setAnswer(exampleAudits[i].answer);
+    setSources([{ title: 'Illustrative source', text: exampleAudits[i].source }]);
+    setError('');
+  };
+
+  const run = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!answer.trim() || !sources.some(s => s.text.trim())) {
+      setError('Add an answer and at least one source before running the audit.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer, sources })
+      });
+      if (!res.ok) throw new Error('API request failed');
+      const data = await res.json();
+      onResults(data);
+    } catch (err) {
+      console.warn("API not ready, using mock data", err);
+      setTimeout(() => {
+        onResults({
+          ...demoAudit,
+          title: 'Illustrative audit — custom input',
+          original_answer: answer,
+          sources: sources.map((s, i) => ({ id: `custom-${i}`, title: s.title || `Source ${i+1}`, text: s.text }))
+        });
+      }, 800);
+    } finally {
+      setTimeout(() => setLoading(false), 800);
+    }
+  };
+
+  return (
+    <AppShell onBack={onBack}>
+      <div className="mx-auto max-w-4xl px-5 py-10 lg:px-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-indigo-600">New Audit</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Check an AI-generated answer against its source material.</h1>
+          </div>
+          <span className="hidden rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 sm:inline-flex">Demo mode</span>
+        </div>
+        <form onSubmit={run} className="mt-10 flex flex-col gap-7">
+          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">{error}</div>}
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold">AI-generated answer</span>
+            <textarea value={answer} onChange={e => setAnswer(e.target.value)} rows={7} placeholder="Paste the answer you want to inspect..." className="rounded-xl border border-slate-200 bg-white p-4 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" />
+          </label>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">Source material</h2>
+                <p className="mt-1 text-xs text-slate-500">Paste the material the answer should be checked against.</p>
+              </div>
+              <span className="text-xs text-slate-400">Pasted text only</span>
+            </div>
+            {sources.map((source, i) => (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4" key={i}>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Source {i+1}</span>
+                  {sources.length > 1 && <button type="button" onClick={() => setSources(sources.filter((_, j) => j !== i))} className="text-xs font-medium text-slate-500 hover:text-rose-600">Remove</button>}
+                </div>
+                <div className="flex flex-col gap-3">
+                  <input value={source.title} onChange={e => setSources(sources.map((s, j) => j === i ? { ...s, title: e.target.value } : s))} placeholder="Source title" className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500" />
+                  <textarea value={source.text} onChange={e => setSources(sources.map((s, j) => j === i ? { ...s, text: e.target.value } : s))} rows={4} placeholder="Paste source text..." className="rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6 outline-none focus:border-indigo-500" />
+                </div>
+              </div>
+            ))}
+            <Button variant="secondary" onClick={() => setSources([...sources, { title: '', text: '' }])}><Plus size={16} /> Add another source</Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-6">
+            <Button type="submit" disabled={loading}>{loading ? 'Analyzing...' : 'Run Audit'} {loading ? null : <ArrowRight size={16} />}</Button>
+            <Button variant="secondary" onClick={() => loadExample(0)} disabled={loading}>Load Example</Button>
+            <button type="button" onClick={() => { setAnswer(''); setSources([{ title: '', text: '' }]); setError(''); }} className="px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900" disabled={loading}>Clear</button>
+          </div>
+          <p className="text-xs leading-5 text-slate-400">If the backend is unavailable, it will fallback to mock data.</p>
+        </form>
+      </div>
+    </AppShell>
+  );
+}
 
 function AppShell({ children, onBack }: { children: React.ReactNode; onBack: () => void }) { return <div className="min-h-screen bg-[#f7f8fc] text-slate-950"><aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white px-4 py-5 lg:block"><Logo /><div className="mt-10 flex flex-col gap-1"><button onClick={onBack} className="flex items-center gap-3 rounded-lg bg-indigo-50 px-3 py-2.5 text-sm font-semibold text-indigo-700"><Plus size={16} /> New Audit</button><button className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-500 hover:bg-slate-50"><ClipboardCheck size={16} /> Demo Audit</button><button className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-500 hover:bg-slate-50"><FileText size={16} /> Demo History</button></div><div className="absolute bottom-5 left-4 right-4 border-t border-slate-100 pt-4"><button className="flex items-center gap-3 px-3 py-2 text-sm text-slate-500"><BookOpen size={16} /> Methodology</button></div></aside><div className="lg:pl-64"><header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5 lg:px-8"><button onClick={onBack} className="lg:hidden"><Logo /></button><span className="hidden text-sm text-slate-400 lg:inline">Evidence workspace</span><button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Open menu"><Menu size={19} /></button></header>{children}</div></div> }
 
