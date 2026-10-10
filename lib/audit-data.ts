@@ -6,7 +6,7 @@ export type Source = { id: string; title: string; text: string }
 export type ConfidenceLevel = 'high' | 'medium' | 'low'
 export type Claim = { id: string; text: string; verdict: Verdict; categories: FindingCategory[]; explanation: string; confidence?: number; confidenceLevel?: ConfidenceLevel; evidence: Evidence[]; limitation?: string; answer_start?: number; answer_end?: number; evidenceVerified?: boolean }
 export type AuditSummary = { total_claims: number; supported: number; contradicted: number; unsupported: number; ambiguous: number }
-export type Audit = { audit_id: string; title: string; mode: 'demo' | 'live'; overall_assessment: string; original_answer: string; sources: Source[]; claims: Claim[]; summary?: AuditSummary }
+export type Audit = { audit_id: string; title: string; mode: 'demo' | 'live'; overall_assessment: string; original_answer: string; sources: Source[]; claims: Claim[]; summary?: AuditSummary; source_filename?: string }
 
 export type AnalyzeClaim = {
   claim_text: string
@@ -57,13 +57,14 @@ export const isAnalyzeResponse = (value: unknown): value is AnalyzeResponse => {
   return claimsAreValid && ['total_claims', 'supported', 'contradicted', 'unsupported', 'ambiguous'].every((key) => Number.isInteger(summary[key as keyof AuditSummary]))
 }
 
-export const createLiveAudit = (response: AnalyzeResponse, answer: string, sources: Source[]): Audit => ({
+export const createLiveAudit = (response: AnalyzeResponse, answer: string, sources: Source[], sourceFilename?: string): Audit => ({
   audit_id: `audit-${Date.now()}`,
   title: 'Custom source audit',
   mode: 'live',
   overall_assessment: response.summary.contradicted > 0 ? 'Review needed' : 'Analysis complete',
   original_answer: answer,
   sources,
+  source_filename: sourceFilename,
   summary: response.summary,
   claims: response.claims.map((claim, index) => {
     const verdict: Verdict = claim.classification === 'unsupported' ? 'insufficient_evidence' : claim.classification

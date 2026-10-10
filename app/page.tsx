@@ -1,8 +1,11 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { ArrowRight, BookOpen, Check, CheckCircle2, ChevronRight, CircleAlert, ClipboardCheck, FileText, Info, LoaderCircle, Menu, Minus, Plus, Search, ShieldAlert, Sparkles, Target, Upload, X, Zap } from 'lucide-react'
 import { createLiveAudit, demoAudit, exampleAudits, getCounts, getHighlightParts, isAnalyzeResponse, isExtractPdfResponse, verdictLabels, type Audit, type Claim, type Source, type Verdict } from '@/lib/audit-data'
+import { AccountMenu } from '@/components/account-menu'
+import { SaveAuditButton } from '@/components/save-audit-button'
 
 /* ── Verdict styling (neumorphic) ─────────────────────────────────── */
 
@@ -132,7 +135,8 @@ function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () => void 
             <a href="#how-it-works" className="transition-colors duration-300 hover:text-[#6C63FF]">How it works</a>
             <a href="#principles" className="transition-colors duration-300 hover:text-[#6C63FF]">Principles</a>
           </nav>
-          <div className="hidden md:block">
+          <div className="hidden items-center gap-3 md:flex">
+            <AccountMenu />
             <NeuButton onClick={onStart}>Start an Audit <ArrowRight size={16} /></NeuButton>
           </div>
           <button
@@ -148,6 +152,7 @@ function Landing({ onStart, onDemo }: { onStart: () => void; onDemo: () => void 
             <a href="#features" onClick={() => setMenu(false)} className="px-4 py-3 rounded-[12px] font-medium text-sm hover:neu-inset-sm transition-all duration-300">Features</a>
             <a href="#how-it-works" onClick={() => setMenu(false)} className="px-4 py-3 rounded-[12px] font-medium text-sm hover:neu-inset-sm transition-all duration-300">How it works</a>
             <a href="#principles" onClick={() => setMenu(false)} className="px-4 py-3 rounded-[12px] font-medium text-sm hover:neu-inset-sm transition-all duration-300">Principles</a>
+            <AccountMenu />
             <NeuButton onClick={onStart}>Start an Audit</NeuButton>
           </nav>
         )}
@@ -400,9 +405,9 @@ function AppShell({
             >
               <ClipboardCheck size={16} /> Demo Audit
             </button>
-            <button className="flex items-center gap-3 rounded-[16px] bg-[#E0E5EC] px-4 py-3 text-sm font-medium text-[#6B7280] transition-all duration-300 hover:neu-inset-sm">
-              <FileText size={16} /> Demo History
-            </button>
+            <Link href="/history" className="flex items-center gap-3 rounded-[16px] bg-[#E0E5EC] px-4 py-3 text-sm font-medium text-[#6B7280] transition-all duration-300 hover:neu-inset-sm">
+              <FileText size={16} /> Audit History
+            </Link>
           </div>
           <div className="mt-auto pt-4">
             <button className="flex items-center gap-3 px-4 py-3 text-sm text-[#6B7280] rounded-[16px] transition-all duration-300 hover:neu-inset-sm w-full">
@@ -419,12 +424,7 @@ function AppShell({
             <Logo />
           </button>
           <span className="hidden text-sm font-medium text-[#6B7280] lg:inline">Evidence workspace</span>
-          <button
-            className="grid size-10 place-items-center rounded-[12px] bg-[#E0E5EC] text-[#6B7280] neu-extruded-sm transition-all duration-300 active:neu-inset-sm"
-            aria-label="Open menu"
-          >
-            <Menu size={19} />
-          </button>
+          <AccountMenu />
         </header>
         {children}
       </div>
@@ -504,6 +504,7 @@ function InputWorkspace({
 
   const run = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     if (!answer.trim()) {
       setError('Add an AI-generated answer before running the audit.')
       return
@@ -557,7 +558,7 @@ function InputWorkspace({
         throw new Error(apiError?.error?.message || `Audit request failed with status ${res.status}.`)
       }
       if (!isAnalyzeResponse(data)) throw new Error('The server returned an unexpected audit response.')
-      onResults(createLiveAudit(data, answer, submittedSources))
+      onResults(createLiveAudit(data, answer, submittedSources, pdfFile?.name))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The audit could not be completed. Please try again.')
     } finally {
@@ -849,7 +850,8 @@ function LiveResults({
               {hasContradictions ? 'Contradictory claims found · review needed' : 'Analysis complete · no contradictions found'}
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-start gap-3">
+            <SaveAuditButton audit={audit} />
             <NeuButton variant="secondary" onClick={onBack}>Edit input</NeuButton>
             <NeuButton onClick={onNew}>New audit <Plus size={16} /></NeuButton>
           </div>
